@@ -1,0 +1,1 @@
+A library that I made to help with my own projects.
