@@ -64,15 +64,6 @@ class Path {
     return new Path(path.join(path.dirname(this._path), newName))
   }
 
-  async exists(): Promise<boolean> {
-    try {
-      await fs.access(this._path)
-      return true
-    } catch {
-      return false
-    }
-  }
-
   async isFile(): Promise<boolean> {
     try {
       return (await fs.stat(this._path)).isFile()
@@ -155,9 +146,9 @@ class File extends Path {
   }
 
   async renameTo(newName: string): Promise<void> {
-    await fs.rename(this.toString(), newName)
+    const parentDir = path.dirname(this.toString());
+    await fs.rename(this.toString(), path.join(parentDir, newName));
   }
-
   async copyTo(target: string): Promise<void> {
     await fs.copyFile(this.toString(), target)
   }
@@ -265,7 +256,8 @@ class Directory extends Path {
   }
 
   async renameTo(newName: string): Promise<void> {
-    await fs.rename(this.toString(), newName)
+    const parentDir = path.dirname(this.toString());
+    await fs.rename(this.toString(), path.join(parentDir, newName));
   }
 
   async copyTo(target: string): Promise<void> {

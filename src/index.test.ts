@@ -150,10 +150,11 @@ describe('File and Directory with TempDir', () => {
     expect(await movedFile.exists()).toBe(true)
 
     // Rename
-    const renameTarget = tempDir.join('renamed.txt').toString()
-    await movedFile.renameTo(renameTarget)
+    const newName = 'renamed.txt'
+    await movedFile.renameTo(newName)
     expect(await movedFile.exists()).toBe(false)
-    expect(await File.at(renameTarget).exists()).toBe(true)
+    const renamedFile = tempDir.join(newName).as(File)
+    expect(await renamedFile.exists()).toBe(true)
   })
 
   it('should create and check existence of a directory', async () => {
