@@ -97,9 +97,30 @@ class Path {
     return fs.lstat(this._path)
   }
 
-  /* Takes any type of path including Files and Dirs and coerces it as a different one. */
+  /* Takes any type of path including Files and Dirs and casts it as a different one. */
   as<T extends Path>(type: { at: (p: string) => T }): T {
-    return type.at(this.toString())
+    if (!(this instanceof Path) || typeof this._path !== "string") {
+      throw new TypeError("Invalid Path object");
+    }
+
+    if (this instanceof Directory && type === (File as any)) {
+      throw new TypeError("Cannot cast a Directory to a File");
+    }
+
+    if (this instanceof File && type === (Directory as any)) {
+      throw new TypeError("Cannot cast a File to a Directory");
+    }
+
+    if (this instanceof Json && type === (Directory as any)) {
+      throw new TypeError("Cannot cast a Json to a Directory");
+    }
+
+    return type.at(this.toString());
+  }
+
+  // Unsafe version of as() absolutely no checking is done at all.
+  uAs<T extends Path>(type: { at: (p: string) => T }): T {
+    return type.at(this.toString());
   }
 }
 
