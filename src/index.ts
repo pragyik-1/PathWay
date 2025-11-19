@@ -1,91 +1,96 @@
-import path from 'node:path'
-import fs from 'node:fs/promises'
-import type { Stats } from 'node:fs'
-import os from 'node:os'
-import { randomUUID } from 'node:crypto'
+import path from "node:path";
+import fs from "node:fs/promises";
+import type { Stats } from "node:fs";
+import os from "node:os";
+import { randomUUID } from "node:crypto";
 
 class Path {
-  protected _path: string
+  protected _path: string;
+  protected _statcache: Stats | undefined;
 
   protected constructor(p: string | Path) {
-    this._path = path.normalize(typeof p === 'string' ? p : p.toString())
+    this._path = path.normalize(typeof p === "string" ? p : p.toString());
   }
 
   static at(p: string | Path): Path {
-    return new Path(p)
+    return new Path(p);
   }
 
   valueOf(): string {
-    return this._path
+    return this._path;
   }
 
   toString(): string {
-    return this._path
+    return this._path;
   }
 
   join(...paths: string[]): Path {
-    return new Path(path.join(this._path, ...paths))
+    return new Path(path.join(this._path, ...paths));
   }
 
   basename(): string {
-    return path.basename(this._path)
+    return path.basename(this._path);
   }
 
   name(): string {
-    return path.basename(this._path, path.extname(this._path))
+    return path.basename(this._path, path.extname(this._path));
   }
 
   ext(): string {
-    return path.extname(this._path)
+    return path.extname(this._path);
   }
 
   isAbsolute(): boolean {
-    return path.isAbsolute(this._path)
+    return path.isAbsolute(this._path);
   }
 
   resolve(): Path {
-    return new Path(path.resolve(this._path))
+    return new Path(path.resolve(this._path));
   }
 
   relativeTo(to: string): Path {
-    return new Path(path.relative(to, this._path))
+    return new Path(path.relative(to, this._path));
   }
 
   parent(): Directory {
-    return new Path(path.dirname(this._path)).as(Directory)
+    return new Path(path.dirname(this._path)).as(Directory);
   }
 
   withExt(newExt: string): Path {
-    const basename = path.basename(this._path, path.extname(this._path))
-    return new Path(path.join(path.dirname(this._path), `${basename}${newExt}`))
+    const basename = path.basename(this._path, path.extname(this._path));
+    return new Path(
+      path.join(path.dirname(this._path), `${basename}${newExt}`)
+    );
   }
 
   withName(newName: string): Path {
-    return new Path(path.join(path.dirname(this._path), newName))
+    return new Path(path.join(path.dirname(this._path), newName));
   }
 
   async isFile(): Promise<boolean> {
     try {
-      return (await fs.stat(this._path)).isFile()
+      return (await fs.stat(this._path)).isFile();
     } catch {
-      return false
+      return false;
     }
   }
 
   async isDirectory(): Promise<boolean> {
     try {
-      return (await fs.stat(this._path)).isDirectory()
+      return (await fs.stat(this._path)).isDirectory();
     } catch {
-      return false
+      return false;
     }
   }
 
-  async stats(): Promise<Stats> {
-    return fs.stat(this._path)
+  async stat(): Promise<Stats> {
+    if (!this._statcache) this._statcache = await fs.stat(this._path);
+    return this._statcache;
   }
 
-  async lstats(): Promise<Stats> {
-    return fs.lstat(this._path)
+  async lstat(): Promise<Stats> {
+		if (!this._statcache) this._statcache = await fs.lstat(this._path);
+    return this._statcache;
   }
 
   /* Takes any type of path including Files and Dirs and casts it as a different one. */
@@ -117,32 +122,39 @@ class Path {
 
 class File extends Path {
   protected constructor(p: string | Path) {
-    super(p)
+    super(p);
   }
 
   static at(p: string | Path): File {
-    return new File(p)
+    return new File(p);
   }
 
   async exists(): Promise<boolean> {
-    return this.isFile()
+    return this.isFile();
   }
 
-  async read(encoding: BufferEncoding = 'utf-8'): Promise<string> {
-    return fs.readFile(this.toString(), encoding)
+  async read(encoding: BufferEncoding = "utf-8"): Promise<string> {
+    return fs.readFile(this.toString(), encoding);
   }
 
-  async write(data: string | Buffer, encoding: BufferEncoding = 'utf-8'): Promise<void> {
-    await fs.writeFile(this.toString(), data, encoding)
+  async write(
+    data: string | Buffer,
+    encoding: BufferEncoding = "utf-8",
+    ensure: boolean = true
+  ): Promise<void> {
+    if (ensure) {
+      await this.ensure();
+    }
+    await fs.writeFile(this.toString(), data, encoding);
   }
 
   async size(): Promise<number> {
-    const stats = await fs.stat(this.toString())
-    return stats.size
+    const stats = await fs.stat(this.toString());
+    return stats.size;
   }
 
   async remove(): Promise<void> {
-    await fs.rm(this.toString())
+    await fs.rm(this.toString());
   }
 
   async renameTo(newName: string): Promise<void> {
@@ -150,85 +162,92 @@ class File extends Path {
     await fs.rename(this.toString(), path.join(parentDir, newName));
   }
   async copyTo(target: string): Promise<void> {
-    await fs.copyFile(this.toString(), target)
+    await fs.copyFile(this.toString(), target);
   }
 
   async moveTo(target: string): Promise<void> {
-    await fs.rename(this.toString(), target)
+    await fs.rename(this.toString(), target);
   }
 
   async create(recursive = true): Promise<this> {
-    await fs.mkdir(path.dirname(this.toString()), { recursive })
-    await fs.writeFile(this.toString(), '')
-    return this
+    await fs.mkdir(path.dirname(this.toString()), { recursive });
+    await fs.writeFile(this.toString(), "");
+    return this;
   }
 
   async ensure(): Promise<this> {
     if (!(await this.exists())) {
-      await this.create()
+      await this.create();
     }
-    return this
+    return this;
   }
 }
 
 class Directory extends Path {
   protected constructor(p: string | Path) {
-    super(p)
+    super(p);
   }
 
   static at(p: string | Path): Directory {
-    return new Directory(p)
+    return new Directory(p);
   }
 
   async exists(): Promise<boolean> {
-    return this.isDirectory()
+    return this.isDirectory();
   }
 
   async listFiles(): Promise<File[]> {
-    const entries = await fs.readdir(this.toString(), { withFileTypes: true })
-    const files = entries.filter((entry) => entry.isFile())
-    return files.map((entry) => File.at(path.join(this.toString(), entry.name)))
+    const entries = await fs.readdir(this.toString(), { withFileTypes: true });
+    const files = entries.filter((entry) => entry.isFile());
+    return files.map((entry) =>
+      File.at(path.join(this.toString(), entry.name))
+    );
   }
 
   async listDirs(): Promise<Directory[]> {
-    const entries = await fs.readdir(this.toString(), { withFileTypes: true })
-    const dirs = entries.filter((entry) => entry.isDirectory())
-    return dirs.map((entry) => new Directory(path.join(this.toString(), entry.name)))
+    const entries = await fs.readdir(this.toString(), { withFileTypes: true });
+    const dirs = entries.filter((entry) => entry.isDirectory());
+    return dirs.map(
+      (entry) => new Directory(path.join(this.toString(), entry.name))
+    );
   }
 
   async list(): Promise<(File | Directory)[]> {
-    const entries = await fs.readdir(this.toString(), { withFileTypes: true })
-    const filesAndDirs: (File | Directory)[] = []
+    const entries = await fs.readdir(this.toString(), { withFileTypes: true });
+    const filesAndDirs: (File | Directory)[] = [];
     for (const entry of entries) {
-      const fullPath = path.join(this.toString(), entry.name)
+      const fullPath = path.join(this.toString(), entry.name);
       if (entry.isFile()) {
-        filesAndDirs.push(File.at(fullPath))
+        filesAndDirs.push(File.at(fullPath));
       } else if (entry.isDirectory()) {
-        filesAndDirs.push(new Directory(fullPath))
+        filesAndDirs.push(new Directory(fullPath));
       }
     }
-    return filesAndDirs
+    return filesAndDirs;
   }
 
-  private async _listAllDeep(dirPath: string): Promise<{ files: File[]; dirs: Directory[] }> {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true })
-    const promises: Promise<{ files: File[]; dirs: Directory[] }>[] = entries.map(async (entry) => {
-      const fullPath = path.join(dirPath, entry.name)
+  private async _listAllDeep(
+    dirPath: string
+  ): Promise<{ files: File[]; dirs: Directory[] }> {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    const promises: Promise<{ files: File[]; dirs: Directory[] }>[] =
+      entries.map(async (entry) => {
+        const fullPath = path.join(dirPath, entry.name);
 
-      if (entry.isFile()) {
-        return { files: [File.at(fullPath)], dirs: [] }
-      } else if (entry.isDirectory()) {
-        const nestedResults = await this._listAllDeep(fullPath)
-        return {
-          files: nestedResults.files,
-          dirs: [new Directory(fullPath), ...nestedResults.dirs]
+        if (entry.isFile()) {
+          return { files: [File.at(fullPath)], dirs: [] };
+        } else if (entry.isDirectory()) {
+          const nestedResults = await this._listAllDeep(fullPath);
+          return {
+            files: nestedResults.files,
+            dirs: [new Directory(fullPath), ...nestedResults.dirs],
+          };
         }
-      }
 
-      return { files: [], dirs: [] }
-    })
+        return { files: [], dirs: [] };
+      });
 
-    const allResults = await Promise.all(promises)
+    const allResults = await Promise.all(promises);
 
     return allResults.reduce(
       (acc, current) => ({
@@ -236,23 +255,23 @@ class Directory extends Path {
         dirs: [...acc.dirs, ...current.dirs],
       }),
       { files: [], dirs: [] }
-    )
+    );
   }
   async listFilesDeep(): Promise<File[]> {
-    return (await this._listAllDeep(this.toString())).files
+    return (await this._listAllDeep(this.toString())).files;
   }
 
   async listDirsDeep(): Promise<Directory[]> {
-    return (await this._listAllDeep(this.toString())).dirs
+    return (await this._listAllDeep(this.toString())).dirs;
   }
 
   async listDeep(): Promise<(File | Directory)[]> {
-    const { files, dirs } = await this._listAllDeep(this.toString())
-    return [...files, ...dirs]
+    const { files, dirs } = await this._listAllDeep(this.toString());
+    return [...files, ...dirs];
   }
 
   async remove(): Promise<void> {
-    await fs.rm(this.toString(), { recursive: true })
+    await fs.rm(this.toString(), { recursive: true });
   }
 
   async renameTo(newName: string): Promise<void> {
@@ -261,83 +280,93 @@ class Directory extends Path {
   }
 
   async copyTo(target: string): Promise<void> {
-    await fs.cp(this.toString(), target, { recursive: true })
+    await fs.cp(this.toString(), target, { recursive: true });
   }
 
   async create(recursive = true): Promise<this> {
-    await fs.mkdir(this.toString(), { recursive })
-    return this
+    await fs.mkdir(this.toString(), { recursive });
+    return this;
   }
 
   async moveTo(target: string): Promise<void> {
-    await fs.rename(this.toString(), target)
+    await fs.rename(this.toString(), target);
   }
 
   async empty(): Promise<void> {
-    const items = await fs.readdir(this.toString())
+    const items = await fs.readdir(this.toString());
     await Promise.all(
-      items.map((item) => fs.rm(path.join(this.toString(), item), { recursive: true, force: true }))
-    )
+      items.map((item) =>
+        fs.rm(path.join(this.toString(), item), {
+          recursive: true,
+          force: true,
+        })
+      )
+    );
   }
 
-  async walk(callback: (item: File | Directory) => Promise<void> | void): Promise<void> {
-    const items = await this.list()
+  async walk(
+    callback: (item: File | Directory) => Promise<void> | void
+  ): Promise<void> {
+    const items = await this.list();
     for (const item of items) {
-      await callback(item)
+      await callback(item);
       if (item instanceof Directory) {
-        await item.walk(callback)
+        await item.walk(callback);
       }
     }
   }
 
   async ensure(): Promise<this> {
     if (!(await this.exists())) {
-      await this.create()
+      await this.create();
     }
-    return this
+    return this;
   }
 }
 
 class Json extends File {
   protected constructor(p: string | Path) {
-    super(p)
+    super(p);
   }
 
   static at(p: string | Path): Json {
-    return new Json(p)
+    return new Json(p);
   }
 
   async read<T>(): Promise<T> {
-    return JSON.parse(await super.read('utf-8'))
+    return JSON.parse(await super.read("utf-8"));
   }
 
-  async write(data: unknown, encoding: BufferEncoding = 'utf-8'): Promise<void> {
-    if (typeof data === 'object' && !Buffer.isBuffer(data)) {
-      return super.write(JSON.stringify(data, null, 2), encoding)
+  async write(
+    data: unknown,
+    encoding: BufferEncoding = "utf-8"
+  ): Promise<void> {
+    if (typeof data === "object" && !Buffer.isBuffer(data)) {
+      return super.write(JSON.stringify(data, null, 2), encoding);
     }
-    return super.write(JSON.stringify(data), encoding)
+    return super.write(JSON.stringify(data), encoding);
   }
 
   async create(recursive = true): Promise<this> {
-    await fs.mkdir(path.dirname(this.toString()), { recursive })
-    await fs.writeFile(this.toString(), '{}')
-    return this
+    await fs.mkdir(path.dirname(this.toString()), { recursive });
+    await fs.writeFile(this.toString(), "{}");
+    return this;
   }
 }
 
 class TempDir extends Directory {
   constructor() {
-    const tempPath = path.join(os.tmpdir(), `temp-${randomUUID()}`)
-    super(tempPath)
+    const tempPath = path.join(os.tmpdir(), `temp-${randomUUID()}`);
+    super(tempPath);
   }
   async with<T>(fn: (dir: TempDir) => Promise<T>): Promise<T> {
-    await this.create()
+    await this.create();
     try {
-      return await fn(this)
+      return await fn(this);
     } finally {
-      await this.remove()
+      await this.remove();
     }
   }
 }
 
-export { Path, File, Directory, Json, TempDir }
+export { Path, File, Directory, Json, TempDir };
