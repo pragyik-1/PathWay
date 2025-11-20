@@ -145,14 +145,14 @@ describe('File and Directory with TempDir', () => {
     // Move
     const moveTarget = tempDir.join('moved.txt').toString()
     await copiedFile.moveTo(moveTarget)
-    expect(await copiedFile.exists()).toBe(false)
+    expect(await File.at(copyTarget).exists()).toBe(false)
     const movedFile = File.at(moveTarget)
     expect(await movedFile.exists()).toBe(true)
 
     // Rename
     const newName = 'renamed.txt'
     await movedFile.renameTo(newName)
-    expect(await movedFile.exists()).toBe(false)
+    expect(await File.at(moveTarget).exists()).toBe(false)
     const renamedFile = tempDir.join(newName).as(File)
     expect(await renamedFile.exists()).toBe(true)
   })
@@ -221,7 +221,7 @@ describe('File and Directory with TempDir', () => {
     await dir.join('sub-dir').as(Directory).create()
     expect((await dir.list()).length).toBe(2)
 
-    await dir.empty()
+    await dir.clear()
     expect((await dir.list()).length).toBe(0)
   })
 
