@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 class Path {
   protected _path: string;
   protected _statcache: Stats | undefined;
+  protected _lstatcache: Stats | undefined;
 
   protected constructor(p: string | Path) {
     this._path = path.normalize(typeof p === "string" ? p : p.toString());
@@ -21,7 +22,7 @@ class Path {
     return new Path(p);
   }
 
-	/** Provides a string version of */
+  /** Provides a string version of */
   valueOf(): string {
     return this._path;
   }
@@ -44,6 +45,11 @@ class Path {
 
   ext(): string {
     return path.extname(this._path);
+  }
+
+  setExt(newExt: string) {
+    const basename = path.basename(this._path, path.extname(this._path));
+    this._setPath(path.join(path.dirname(this._path), `${basename}${newExt}`));
   }
 
   isAbsolute(): boolean {
@@ -101,12 +107,13 @@ class Path {
   }
 
   async lstat(): Promise<Stats> {
-    if (!this._statcache) this._statcache = await fs.lstat(this._path);
-    return this._statcache;
+    if (!this._lstatcache) this._lstatcache = await fs.lstat(this._path);
+    return this._lstatcache;
   }
 
   clearCache() {
     this._statcache = undefined;
+    this._lstatcache = undefined;
   }
 
   /* Takes any type of path including Files and Dirs and casts it as a different one. */
@@ -157,9 +164,8 @@ class File extends Path {
       return this._contentCache;
     }
     let content = await fs.readFile(this.toString(), encoding);
-    if (encoding === "utf-8") {
-      this._contentCache = content as string;
-    }
+    this._contentCache = content;
+
     return content;
   }
 
@@ -182,13 +188,14 @@ class File extends Path {
 
   async remove(): Promise<void> {
     await fs.rm(this.toString());
-		this.clearCache();
+    this.clearCache();
   }
 
   async renameTo(newName: string, modifying = true): Promise<void> {
     const parentDir = path.dirname(this.toString());
-    await fs.rename(this.toString(), path.join(parentDir, newName));
-		if (modifying) super._setPath(`${parentDir}/${newName}`);
+    const newPath = path.join(parentDir, newName);
+    await fs.rename(this.toString(), newPath);
+    if (modifying) super._setPath(newPath);
   }
   async copyTo(target: string): Promise<this> {
     await fs.copyFile(this.toString(), target);
@@ -202,7 +209,11 @@ class File extends Path {
 
   async create(recursive = true): Promise<this> {
     await fs.mkdir(path.dirname(this.toString()), { recursive });
-    await fs.writeFile(this.toString(), "");
+    try {
+      await fs.open(this.toString(), "wx");
+    } catch (err: any) {
+      if (err.code !== "EEXIST") throw err;
+    }
     return this;
   }
 
@@ -307,8 +318,9 @@ class Directory extends Path {
 
   async renameTo(newName: string, modifying = true): Promise<void> {
     const parentDir = path.dirname(this.toString());
-    if (modifying) super._setPath(`${parentDir}/${newName}`);
-    await fs.rename(this.toString(), path.join(parentDir, newName));
+    const newPath = path.join(parentDir, newName);
+    await fs.rename(this.toString(), newPath);
+    if (modifying) super._setPath(newPath);
   }
 
   async copyTo(target: string): Promise<this> {
@@ -399,7 +411,7 @@ class TempDir extends Directory {
       return await fn(this);
     } finally {
       await this.remove();
-			super.clearCache();
+      super.clearCache();
     }
   }
 }
