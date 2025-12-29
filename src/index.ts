@@ -16,6 +16,7 @@ class Path {
   protected _setPath(p: string) {
     this._path = p;
     this._statcache = undefined;
+    this._lstatcache = undefined;
   }
 
   static at(p: string | Path): Path {
@@ -173,12 +174,22 @@ class File extends Path {
     data: string | Buffer,
     encoding: BufferEncoding = "utf-8",
     ensure: boolean = true
-  ): Promise<void> {
+  ): Promise<this> {
     if (ensure) {
       await this.ensure();
     }
     this.clearCache();
     await fs.writeFile(this.toString(), data, encoding);
+    return this;
+  }
+
+  async append(
+    data: string | Buffer,
+    encoding: BufferEncoding = "utf-8"
+  ): Promise<this> {
+    await fs.appendFile(this.toString(), data, encoding);
+    this.clearCache();
+    return this;
   }
 
   async size(): Promise<number> {
@@ -210,7 +221,7 @@ class File extends Path {
   async create(recursive = true): Promise<this> {
     await fs.mkdir(path.dirname(this.toString()), { recursive });
     try {
-      await fs.open(this.toString(), "wx");
+      await fs.writeFile(this.toString(), "");
     } catch (err: any) {
       if (err.code !== "EEXIST") throw err;
     }
@@ -385,10 +396,14 @@ class Json extends File {
 
   async write(
     data: unknown,
-    encoding: BufferEncoding = "utf-8"
-  ): Promise<void> {
+    encoding: BufferEncoding = "utf-8",
+    pretty = true
+  ): Promise<this> {
     if (typeof data === "object" && !Buffer.isBuffer(data)) {
-      return super.write(JSON.stringify(data, null, 2), encoding);
+      return super.write(
+        JSON.stringify(data, null, pretty ? 2 : undefined),
+        encoding
+      );
     }
     return super.write(JSON.stringify(data), encoding);
   }
@@ -397,6 +412,22 @@ class Json extends File {
     await fs.mkdir(path.dirname(this.toString()), { recursive });
     await fs.writeFile(this.toString(), "{}");
     return this;
+  }
+
+  async append(
+    data: {},
+    encoding: BufferEncoding = "utf-8",
+    pretty = true
+  ) {
+    if (!Array.isArray(data)) {
+      data = [data];
+    }
+    const prevData = (await this.read()) as {};
+    const newData = { ...prevData, ...data };
+    return super.write(
+      JSON.stringify(newData, null, pretty ? 2 : undefined),
+      encoding
+    );
   }
 }
 
